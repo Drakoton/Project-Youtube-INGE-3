@@ -18,3 +18,4 @@ On a déjà créé la table sur Big Query pour les 2 chaines youtube du projet. 
 ### Tache à faire maintenant :
 
 - Comment trouver quelles chaines sont les intéressantes pour un partenariat de vidéos Youtube pour avoir plus de vues. En bref trouver dans une niche avec qui faire des feat en utilisant internet et pas les outils de programmation.
+- Comment implémenter des graphiques analytics, un système de recommandation ainsi qu'un système de ML sur un site web.
