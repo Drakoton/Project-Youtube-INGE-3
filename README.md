@@ -19,3 +19,19 @@ On a déjà créé la table sur Big Query pour les 2 chaines youtube du projet. 
 
 - Comment trouver quelles chaines sont les intéressantes pour un partenariat de vidéos Youtube pour avoir plus de vues. En bref trouver dans une niche avec qui faire des feat en utilisant internet et pas les outils de programmation.
 - Comment implémenter des graphiques analytics, un système de recommandation ainsi qu'un système de ML sur un site web.
+
+
+### Partie NextJS :
+
+mon-projet-next/
+├── node_modules/
+├── config/
+│   └── trendly-446310-1a3b86c5d915.json
+├── pages/
+│   └── index.js
+│   └── api/
+│       └── sentiment_analysis.py
+│       └── sentiment.js
+├── public/
+├── package.json
+└── next.config.js
