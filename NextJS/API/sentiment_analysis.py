@@ -1,74 +1,55 @@
-import pandas as pd
-import re
-from textblob_fr import PatternTagger, PatternAnalyzer
-from textblob import TextBlob
-from google.cloud import bigquery
-import os
-import sys
-import io
-import json
-import warnings
+import { spawn } from 'child_process';
 
-# Ignorer les warnings de type UserWarning
-warnings.filterwarnings("ignore", category=UserWarning)
+export default function handler(req, res) {
+  if (req.method === 'GET') {
+    console.log("Exécution du script Python...");
 
-# Force l'encodage en UTF-8 pour Windows
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    const scriptPath = `${process.cwd()}/pages/api/sentiment_analysis.py`;
+    const python = spawn('python', [scriptPath]);
 
-# Chargement de l'authentification BigQuery
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/Youtube/mon-projet/config/trendly-446310-1a3b86c5d915.json"
+    let stdoutData = '';
+    let stderrData = '';
 
-# Créer un client BigQuery
-client = bigquery.Client()
+    python.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+    });
 
-def clean_text(text):
-    text = str(text).lower()
-    text = re.sub(r'http\S+|@\S+|#\S+', '', text)
-    text = text.encode('ascii', 'ignore').decode()
-    text = re.sub(r'[^a-zàâçéèêëîïôûùüÿñæœ\s]', '', text)
-    return text.strip()
+    python.stderr.on('data', (data) => {
+      stderrData += data.toString();
+    });
 
-query = """
-    SELECT description, comments, published_at
-    FROM trendly-446310.youtube_data.TEST_CHANNELS
-"""
-df = client.query(query).to_dataframe()
+    python.on('close', (code) => {
+      console.log("Sortie complète du script Python:", stdoutData); // 🔍 Debug
 
-if 'description' not in df.columns or 'comments' not in df.columns:
-    raise ValueError("Le fichier doit contenir les colonnes 'description' et 'comments'.")
+      if (code !== 0) {
+        console.error("Erreur d'exécution du script:", stderrData);
+        return res.status(500).json({ error: stderrData || 'Erreur inconnue' });
+      }
 
-if 'published_at' in df.columns:
-    df['published_at'] = pd.to_datetime(df['published_at'], errors='coerce')
+      try {
+        const data = JSON.parse(stdoutData);
 
-df['description_clean'] = df['description'].astype(str).apply(clean_text)
-df['comments_clean'] = df['comments'].astype(str).apply(clean_text)
+        // Vérifier que les sentiments des descriptions et commentaires sont présents
+        if (
+          (!data.description_sentiments || Object.keys(data.description_sentiments).length === 0) ||
+          (!data.comments_sentiments || Object.keys(data.comments_sentiments).length === 0)
+        ) {
+          return res.status(404).json({ error: 'Pas de données disponibles pour les sentiments des descriptions ou des commentaires.' });
+        }
 
-def analyze_sentiment(text):
-    blob = TextBlob(text, pos_tagger=PatternTagger(), analyzer=PatternAnalyzer())
-    return blob.sentiment[0]
+        return res.status(200).json(data);
+      } catch (err) {
+        console.error("Erreur de parsing JSON:", err);
+        return res.status(500).json({ error: 'Format JSON invalide', rawData: stdoutData });
+      }
+    });
 
-df['desc_sentiment_score'] = df['description_clean'].apply(analyze_sentiment)
-df['comm_sentiment_score'] = df['comments_clean'].apply(analyze_sentiment)
+    python.on('error', (err) => {
+      console.error("Erreur lors du lancement du script Python:", err);
+      return res.status(500).json({ error: 'Erreur lors de l’exécution du script Python' });
+    });
 
-def classify_sentiment(score, threshold=0.05):
-    if score > threshold:
-        return 'positif'
-    elif score < -threshold:
-        return 'négatif'
-    else:
-        return 'neutre'
-
-df['desc_sentiment'] = df['desc_sentiment_score'].apply(classify_sentiment)
-df['comm_sentiment'] = df['comm_sentiment_score'].apply(classify_sentiment)
-
-sentiment_counts_desc = df['desc_sentiment'].value_counts().to_dict()
-sentiment_counts_comm = df['comm_sentiment'].value_counts().to_dict()
-
-result = {
-    'description_sentiments': sentiment_counts_desc,
-    'comments_sentiments': sentiment_counts_comm
+  } else {
+    res.status(405).json({ error: 'Méthode non autorisée' });
+  }
 }
-
-print(json.dumps(result))
-sys.stdout.flush()
-sys.exit(0)
