@@ -86,26 +86,35 @@ export default function Home() {
   return (
     <div>
       <h1>Analyse des Sentiments</h1>
-
+  
       {error && <p style={{ color: 'red' }}>Erreur: {error}</p>}
-
+  
       {loading ? (
         <p>Chargement des données...</p>
       ) : sentimentData ? (
         <div>
           <h2>Distribution des Sentiments</h2>
-          {chartData ? <Bar data={chartData} /> : <p>Pas de données disponibles pour les sentiments.</p>}
-
-          <h2>Corrélation Sentiments - Vues/Likes</h2>
-          {correlationData && correlationData.datasets[0].data.length > 0 ? (
-            <Scatter data={correlationData} />
-          ) : (
-            <p>Pas assez de données pour afficher la corrélation.</p>
-          )}
+          {chartData ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',  // Disposition verticale
+              justifyContent: 'center',  // Centrer les graphiques horizontalement
+              alignItems: 'center',  // Centrer horizontalement
+              gap: '20px'  // Espace entre les graphiques
+            }}>
+              <div style={{ width: '30%' }}>  {/* Premier graphique avec 50% de la largeur */}
+                <Bar data={chartData} width={10} height={10} />
+              </div>
+              <div style={{ width: '30%' }}>  {/* Deuxième graphique avec 50% de la largeur */}
+                <Scatter data={correlationData} width={10} height={10} />
+              </div>
+            </div>
+          ) : <p>Pas de données disponibles pour les sentiments.</p>}
         </div>
       ) : (
         <p>Aucune donnée disponible.</p>
       )}
     </div>
   );
+  
 }
