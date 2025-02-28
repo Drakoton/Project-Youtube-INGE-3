@@ -1,73 +1,80 @@
-import sys
 import os
 import json
-import re
-import io
-import warnings
-from textblob_fr import PatternTagger, PatternAnalyzer
-from textblob import TextBlob
-from google.cloud import bigquery
-import pandas as pd
+import sys
+from google.cloud import bigquery, storage
 
-# Configuration et initialisation
-warnings.filterwarnings("ignore", category=UserWarning)
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/Youtube/mon-projet/config/trendly-446310-1a3b86c5d915.json"
-client = bigquery.Client()
-
-# Lecture de l'ID depuis les arguments
-id_argument = sys.argv[1] if len(sys.argv) > 1 else None
-
-# Requête pour récupérer les données
-query = f"""
-    SELECT description, comments, published_at, view_count, like_count, video_id
-    FROM trendly-446310.youtube_data.FINAL_CHANNELS
-    WHERE video_id = '{id_argument}'
-    LIMIT 1
-"""
-df = client.query(query).to_dataframe()
-
-if df.empty:
-    print(json.dumps({'error': 'Aucune donnée trouvée pour cet ID'}))
+# Vérifier si le videoId est passé comme argument
+if len(sys.argv) < 2:
+    print(json.dumps({'error': 'Aucun videoId fourni'}))
     sys.exit(1)
 
-# Nettoyage et analyse des sentiments
-df['description_clean'] = df['description'].astype(str).apply(lambda x: re.sub(r'http\S+|@\S+|#\S+', '', x.lower()))
-df['comments_clean'] = df['comments'].astype(str).apply(lambda x: re.sub(r'http\S+|@\S+|#\S+', '', x.lower()))
+video_id = sys.argv[1]
 
-def analyze_sentiment(text):
-    blob = TextBlob(text, pos_tagger=PatternTagger(), analyzer=PatternAnalyzer())
-    return blob.sentiment[0]
+# Configurer l'authentification avec votre fichier de clé JSON pour BigQuery et Storage
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/trendly-key_bigquery.json"
+client = bigquery.Client()
 
-df['description_sentiment_score'] = df['description_clean'].apply(analyze_sentiment)
-df['comm_sentiment_score'] = df['comments_clean'].apply(analyze_sentiment)
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/trendly_key_bucket.json"
+storage_client = storage.Client()
 
-# Catégorisation des sentiments
-def categorize_sentiment(score):
-    if score > 0.1:
-        return 'positif'
-    elif score < -0.1:
-        return 'négatif'
+# Spécifier votre dataset et votre table
+dataset_id = 'trendly-446310.youtube_data'
+table_id = 'ProLearning_videos_20250226'
+
+# Construire la requête SQL pour récupérer les données de la vidéo
+query = f"""
+    SELECT *
+    FROM `{dataset_id}.{table_id}`
+    WHERE video_id = '{video_id}'
+"""
+
+# Exécuter la requête
+query_job = client.query(query)
+rows = query_job.result().to_dataframe()
+
+# Si la vidéo existe dans la base
+if not rows.empty:
+    comments_url = rows.iloc[0]['comments_url']
+
+    if comments_url:
+        # Extraire le bucket et le fichier
+        bucket_name = comments_url.split('/')[2]
+        blob_name = '/'.join(comments_url.split('/')[3:])
+
+        # Accéder au fichier dans le bucket
+        bucket = storage_client.get_bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        # Télécharger et lire le fichier JSON des commentaires
+        comments_data = json.loads(blob.download_as_text())
+
+        # Fonction d'analyse des sentiments
+        def detect_sentiment(comment):
+            if any(word in comment.lower() for word in ["merci", "super", "génial", "top", "excellent", "cool"]):
+                return "positif"
+            elif any(word in comment.lower() for word in ["nul", "horrible", "détestable", "dommage", "triste"]):
+                return "negatif"
+            else:
+                return "neutre"
+
+        # Associer chaque commentaire à un sentiment
+        sentiments = {"positif": 0, "neutre": 0, "negatif": 0}
+        analyzed_comments = []
+
+        for comment in comments_data:
+            sentiment = detect_sentiment(comment)
+            sentiments[sentiment] += 1
+            analyzed_comments.append({"text": comment, "sentiment": sentiment})
+
+        # Retourner les données JSON avec l'analyse des sentiments
+        print(json.dumps({
+            'video_id': video_id,
+            'comment_count': len(comments_data),
+            'comments': analyzed_comments,
+            'sentiments': sentiments  # Nouveau !
+        }))
+
     else:
-        return 'neutre'
-
-df['description_sentiment_category'] = df['description_sentiment_score'].apply(categorize_sentiment)
-df['comm_sentiment_category'] = df['comm_sentiment_score'].apply(categorize_sentiment)
-
-# ✅ Générer l'histogramme des scores des commentaires
-comment_scores = df['comm_sentiment_score'].tolist()
-score_bins = pd.cut(comment_scores, bins=10, include_lowest=True)
-comments_distribution = score_bins.value_counts().sort_index().to_dict()
-
-# ✅ **Convertir les données en types natifs JSON-compatibles**
-result = {
-    'description_sentiments': df['description_sentiment_category'].value_counts().to_dict(),
-    'comments_sentiments': df['comm_sentiment_category'].value_counts().to_dict(),
-    'comments_distribution': [{'score': str(interval), 'count': count} for interval, count in comments_distribution.items()],
-    'video_data': df[['video_id', 'description', 'comments', 'view_count', 'like_count']].astype(str).to_dict(orient='records')
-}
-
-print(json.dumps(result, ensure_ascii=False))
-sys.stdout.flush()
-sys.exit(0)
+        print(json.dumps({'video_id': video_id, 'comment_count': 0, 'comments': [], 'sentiments': {}}))
+else:
+    print(json.dumps({'video_id': video_id, 'comment_count': 0, 'comments': [], 'sentiments': {}}))
