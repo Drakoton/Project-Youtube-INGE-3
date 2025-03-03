@@ -1,78 +1,99 @@
-#!pip install nltk
-#import nltk
-#nltk.download('stopwords')
-#from nltk.corpus import stopwords
-
+import os
+import json
+import sys
 import pandas as pd
-import numpy as np
+import numpy as np  # Importer numpy ici
+from google.cloud import bigquery
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 from scipy.sparse import hstack
-import nltk  # Make sure nltk is imported
-nltk.download('stopwords')  # Download stopwords if not already downloaded
+import nltk
 from nltk.corpus import stopwords
+from datetime import timedelta
 
-# 1. Chargement des données
-df = pd.read_excel('/content/results-20250223-021124.xlsx')
+# Assurez-vous que le script reçoit un video_id comme argument
+if len(sys.argv) < 2:
+    print(json.dumps({'error': 'Aucun videoId fourni'}))
+    sys.exit(1)
 
-# 2. Préparation du texte en combinant les colonnes pertinentes
-df['combined_text'] = df['tags'].astype(str) + " " + df['title'].astype(str) + " " + df['description'].astype(str)
+video_id = sys.argv[1]
 
-# Fonction de nettoyage de texte simple
+# Configurer l'authentification pour BigQuery
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/We/dashboard-nextjs/keys/trendly-key_bigquery.json"
+client = bigquery.Client()
+
+# Définir le dataset et la table BigQuery
+dataset_id = 'trendly-446310.youtube_data'
+table_id = 'FINAL_CHANNELS'
+
+# Requête pour récupérer les vidéos
+query = f"""
+    SELECT video_id, title, description, tags, duration, view_count, like_count, transcription, comments, channel_name
+    FROM {dataset_id}.{table_id}
+"""
+query_job = client.query(query)
+df = query_job.result().to_dataframe()
+
+# Trouver l'index de la vidéo dans le DataFrame en fonction du video_id
+try:
+    video_idx = df[df['video_id'] == video_id].index[0]  # Trouver l'index de la vidéo
+except IndexError:
+    print(json.dumps({'error': f'Vidéo avec l\'ID {video_id} non trouvée.'}))
+    sys.exit(1)
+
+# Préparation du texte pour la recommandation
+df['combined_text'] = df['transcription'].astype(str) + " " + df['comments'].astype(str) + " " + df['tags'].astype(str) + " " + df['title'].astype(str) + " " + df['description'].astype(str)
+
+# Nettoyage du texte
 def nettoyer_texte(text):
     text = text.lower()
-    # Vous pouvez ajouter d'autres étapes de nettoyage ici (suppression de ponctuation, stop words, etc.)
     return text
 
 df['combined_text'] = df['combined_text'].apply(nettoyer_texte)
 
-# 3. Vectorisation du texte avec TF-IDF
-french_stop_words = stopwords.words('french') 
-vectorizer = TfidfVectorizer(stop_words=french_stop_words) # Changed line
+# Vectorisation du texte avec TF-IDF
+french_stop_words = stopwords.words('french')
+vectorizer = TfidfVectorizer(stop_words=french_stop_words)
 tfidf_matrix = vectorizer.fit_transform(df['combined_text'])
 
-# 4. Préparation des variables numériques à inclure dans la recommandation
-# Ici nous prenons par exemple 'duration', 'view_count', et 'like_count'
-# Assurez-vous que ces colonnes sont au format numérique
-numeric_features = ['duration', 'view_count', 'like_count']
+# Variables numériques à inclure dans la recommandation
+numeric_features = ['view_count', 'like_count']
 
-# Convert 'duration' to numeric (assuming it's in datetime.time format)
-# Extract total seconds from datetime.time objects and replace 'duration'
-if pd.api.types.is_object_dtype(df['duration']):  
-  df['duration'] = df['duration'].apply(lambda x: x.hour * 3600 + x.minute * 60 + x.second if isinstance(x, pd.Timestamp) else (x.hour * 3600 + x.minute * 60 + x.second if hasattr(x, 'hour') else x) if x is not None and x is not np.nan else 0)
-
-# Remplacer les valeurs manquantes par 0 (ou une autre stratégie)
+# Remplacer les valeurs manquantes dans les colonnes numériques par 0
 df[numeric_features] = df[numeric_features].fillna(0)
 
-# Mise à l'échelle (StandardScaler) pour que ces variables soient comparables
+# Mise à l'échelle des variables numériques
 scaler = StandardScaler()
 numeric_matrix = scaler.fit_transform(df[numeric_features])
 
-# Convertir la matrice numérique en format sparse et la combiner avec la matrice TF-IDF
+# Combinaison de la matrice TF-IDF et des variables numériques
 from scipy import sparse
 numeric_sparse = sparse.csr_matrix(numeric_matrix)
 
-# On peut ajuster le poids des variables textuelles et numériques en multipliant les matrices par un facteur
-# Par exemple, on peut donner plus d'importance au texte ou aux variables numériques
 poids_text = 1.0
 poids_numeric = 0.5
 
 combined_matrix = hstack([tfidf_matrix * poids_text, numeric_sparse * poids_numeric])
 
-# 5. Calcul de la similarité cosinus entre vidéos
-# Choisissez la vidéo cible (par exemple, index 0)
-idx_video = 0
-similarities = cosine_similarity(combined_matrix[idx_video], combined_matrix).flatten()
+# Fonction de recommandation
+def recommander_video(idx_video):
+    similarities = cosine_similarity(combined_matrix[idx_video], combined_matrix).flatten()
 
-# Exclure la vidéo cible
-indices_similaires = np.argsort(similarities)[::-1]
-indices_similaires = [i for i in indices_similaires if i != idx_video]
+    # Exclure la vidéo cible
+    indices_similaires = np.argsort(similarities)[::-1]
+    indices_similaires = [i for i in indices_similaires if i != idx_video]
 
-# 6. Sélection des 5 vidéos les plus similaires
-top_5_indices = indices_similaires[:5]
-top_5_videos = df.iloc[top_5_indices]
+    # Sélection des 5 vidéos les plus similaires
+    top_5_indices = indices_similaires[:5]
+    top_5_videos = df.iloc[top_5_indices]
 
-# Affichage des résultats
-print("Les 5 vidéos recommandées (en combinant texte et variables numériques) sont :")
-print(top_5_videos[['video_id', 'title', 'tags', 'duration', 'view_count', 'like_count']])
+    return top_5_videos[['video_id', 'channel_name', 'title', 'tags', 'duration', 'view_count', 'like_count']]
+
+# Exécution de la recommandation pour la vidéo donnée
+recommended_videos = recommander_video(video_idx)  # Utiliser l'index de la vidéo recherchée
+
+# Convertir les recommandations en liste avant de les passer à json.dumps()
+print(json.dumps({
+    'recommendations': recommended_videos.to_dict(orient='records')
+}, default=str))  # Utilisez 'default=str' pour convertir les objets non sérialisables en chaîne de caractères.
