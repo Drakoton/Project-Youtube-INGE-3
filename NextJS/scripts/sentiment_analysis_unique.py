@@ -2,26 +2,27 @@ import os
 import json
 import sys
 from google.cloud import bigquery, storage
+from textblob import TextBlob  # Ajout de TextBlob pour l'analyse de sentiment
 
-# Vérifier si le videoId est passé comme argument
+# Vérifier si un videoId est passé en argument
 if len(sys.argv) < 2:
     print(json.dumps({'error': 'Aucun videoId fourni'}))
     sys.exit(1)
 
 video_id = sys.argv[1]
 
-# Configurer l'authentification avec votre fichier de clé JSON pour BigQuery et Storage
+# Configurer l'authentification avec votre fichier de clé JSON
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/trendly-key_bigquery.json"
 client = bigquery.Client()
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/trendly_key_bucket.json"
 storage_client = storage.Client()
 
-# Spécifier votre dataset et votre table
+# Spécifier le dataset et la table
 dataset_id = 'trendly-446310.youtube_data'
 table_id = 'ProLearning_videos_20250226'
 
-# Construire la requête SQL pour récupérer les données de la vidéo
+# Requête SQL pour récupérer les données de la vidéo
 query = f"""
     SELECT *
     FROM `{dataset_id}.{table_id}`
@@ -32,7 +33,7 @@ query = f"""
 query_job = client.query(query)
 rows = query_job.result().to_dataframe()
 
-# Si la vidéo existe dans la base
+# Vérifier si la vidéo existe dans la base
 if not rows.empty:
     comments_url = rows.iloc[0]['comments_url']
 
@@ -48,11 +49,14 @@ if not rows.empty:
         # Télécharger et lire le fichier JSON des commentaires
         comments_data = json.loads(blob.download_as_text())
 
-        # Fonction d'analyse des sentiments
+        # Fonction d'analyse des sentiments avec TextBlob
         def detect_sentiment(comment):
-            if any(word in comment.lower() for word in ["merci", "super", "génial", "top", "excellent", "cool"]):
+            analysis = TextBlob(comment)
+            polarity = analysis.sentiment.polarity  # Score entre -1 (négatif) et 1 (positif)
+
+            if polarity > 0:
                 return "positif"
-            elif any(word in comment.lower() for word in ["nul", "horrible", "détestable", "dommage", "triste"]):
+            elif polarity < 0:
                 return "negatif"
             else:
                 return "neutre"
@@ -71,7 +75,7 @@ if not rows.empty:
             'video_id': video_id,
             'comment_count': len(comments_data),
             'comments': analyzed_comments,
-            'sentiments': sentiments  # Nouveau !
+            'sentiments': sentiments
         }))
 
     else:
