@@ -1,3 +1,5 @@
+// pages/api/search.js
+
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -6,7 +8,7 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
-  const videoId = req.query.videoId; // Récupérer l'ID de la vidéo depuis la requête GET
+  const videoId = req.query.videoId;
   if (!videoId) {
     return res.status(400).json({ error: "Le paramètre 'videoId' est requis" });
   }
@@ -14,7 +16,7 @@ export default function handler(req, res) {
   console.log(`Exécution du script Python pour la vidéo ${videoId}...`);
   const scriptPath = path.join(process.cwd(), 'scripts', 'sentiment_analysis_unique.py');
 
-  const python = spawn('python', [scriptPath, videoId]); // Passer l'ID en argument
+  const python = spawn('python', [scriptPath, videoId]); 
 
   let stdoutData = '';
   let stderrData = '';
