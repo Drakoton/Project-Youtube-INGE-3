@@ -17,9 +17,8 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "C:/Users/PC/Downloads/Youtube/mo
 client = bigquery.Client()
 
 query = """
-    SELECT description, comments, published_at, view_count, like_count
+    SELECT transcription, comments, published_at, view_count, like_count
     FROM trendly-446310.youtube_data.FINAL_CHANNELS
-    LIMIT 10
 """
 df = client.query(query).to_dataframe()
 
@@ -28,17 +27,15 @@ def clean_text(text):
     text = re.sub(r'http\S+|@\S+|#\S+', '', text)
     return text.strip()
 
-df['description_clean'] = df['description'].astype(str).apply(clean_text)
+df['transcription_clean'] = df['transcription'].astype(str).apply(clean_text)
 df['comments_clean'] = df['comments'].astype(str).apply(clean_text)
 
 def analyze_sentiment(text):
     blob = TextBlob(text, pos_tagger=PatternTagger(), analyzer=PatternAnalyzer())
     return blob.sentiment[0]
 
-# Calcul du sentiment pour les descriptions
-df['description_sentiment_score'] = df['description_clean'].apply(analyze_sentiment)
-
-# Calcul du sentiment pour les commentaires
+# Analyse des sentiments
+df['transcription_sentiment_score'] = df['transcription_clean'].apply(analyze_sentiment)
 df['comm_sentiment_score'] = df['comments_clean'].apply(analyze_sentiment)
 
 # Fonction pour catégoriser les sentiments
@@ -50,14 +47,11 @@ def categorize_sentiment(score):
     else:
         return 'neutre'
 
-# Appliquer la catégorisation des sentiments pour les descriptions
-df['description_sentiment_category'] = df['description_sentiment_score'].apply(categorize_sentiment)
-
-# Appliquer la catégorisation des sentiments pour les commentaires
+df['transcription_sentiment_category'] = df['transcription_sentiment_score'].apply(categorize_sentiment)
 df['comm_sentiment_category'] = df['comm_sentiment_score'].apply(categorize_sentiment)
 
-# Calculer la distribution des sentiments pour les descriptions et les commentaires
-description_sentiments = df['description_sentiment_category'].value_counts().to_dict()
+# Calcul de la distribution des sentiments
+transcription_sentiments = df['transcription_sentiment_category'].value_counts().to_dict()
 comments_sentiments = df['comm_sentiment_category'].value_counts().to_dict()
 
 df['video_data'] = df.apply(lambda row: {
@@ -69,7 +63,7 @@ df['video_data'] = df.apply(lambda row: {
 correlation = df[['comm_sentiment_score', 'view_count', 'like_count']].corr().to_dict()
 
 result = {
-    'description_sentiments': description_sentiments,
+    'transcription_sentiments': transcription_sentiments,
     'comments_sentiments': comments_sentiments,
     'video_data': df['video_data'].tolist(),
     'correlation': correlation
