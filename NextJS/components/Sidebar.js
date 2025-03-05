@@ -1,65 +1,40 @@
 // components/Sidebar.js
 import Link from 'next/link';
 import { Drawer, List, ListItem, ListItemText, ListItemIcon } from '@mui/material';
-import { Home, VideoLibrary, Stars } from '@mui/icons-material'; // Icônes de MUI
+import { Home, VideoLibrary, Stars } from '@mui/icons-material';
 
 const Sidebar = () => {
   return (
-    <Drawer 
-      variant="permanent" 
-      sx={{ 
-        width: 250,  // Augmenter la largeur de la sidebar (passer de 300px à 400px)
-        flexShrink: 0, // Éviter que la sidebar rétrécisse
-        backgroundColor: '#f4f4f4', // Couleur de fond de la sidebar
-        color: '#000', // Couleur du texte général de la sidebar
+    <Drawer
+      variant="permanent"
+      sx={{
+        width: 375,
+        flexShrink: 0,
+        bgcolor: '#FFF', // Bleu foncé
+        color: '#FFF', // Texte blanc
+        '& .MuiListItemIcon-root': { color: '#000' }, // Icônes blanches
       }}
     >
-      <List sx={{ paddingTop: 2 }}>  {/* Ajouter un espacement au sommet de la liste */}
-        <ListItem 
-          button 
-          component={Link} 
-          href="/" 
-          sx={{ 
-            marginBottom: 3,  // Espacer les éléments verticalement
-          }}
-        >
-          <ListItemIcon sx={{ color: '#000', fontSize: '30px' }}>  {/* Icône plus grande */}
+      <List sx={{ paddingTop: 2 }}>
+        <ListItem button component={Link} href="/" sx={{ mb: 3 }}>
+          <ListItemIcon>
             <Home />
           </ListItemIcon>
-          <ListItemText 
-            primary="Statistiques Globales" 
-            sx={{ fontSize: '22px', color: '#000' }} // Texte plus grand
-          />
+          <ListItemText primary="Statistiques Globales" primaryTypographyProps={{ fontSize: '1.2rem' }} />
         </ListItem>
-        <ListItem 
-          button 
-          component={Link} 
-          href="/reports" 
-          sx={{ 
-            marginBottom: 3,  // Espacer les éléments verticalement
-          }}
-        >
-          <ListItemIcon sx={{ color: '#000', fontSize: '30px' }}>  {/* Icône plus grande */}
+
+        <ListItem button component={Link} href="/reports" sx={{ mb: 3 }}>
+          <ListItemIcon>
             <VideoLibrary />
           </ListItemIcon>
-          <ListItemText 
-            primary="Rapports Vidéo" 
-            sx={{ fontSize: '22px', color: '#000' }} // Texte plus grand
-          />
+          <ListItemText primary="Rapports Vidéo" primaryTypographyProps={{ fontSize: '1.2rem' }} />
         </ListItem>
-        <ListItem 
-          button 
-          component={Link} 
-          href="/stats"
-          sx={{ marginBottom: 3 }}  // Espacer les éléments verticalement
-        >
-          <ListItemIcon sx={{ color: '#000', fontSize: '30px' }}>  {/* Icône plus grande */}
+
+        <ListItem button component={Link} href="/stats" sx={{ mb: 3 }}>
+          <ListItemIcon>
             <Stars />
           </ListItemIcon>
-          <ListItemText 
-            primary="Recommandations" 
-            sx={{ fontSize: '22px', color: '#000' }} // Texte plus grand
-          />
+          <ListItemText primary="Recommandations" primaryTypographyProps={{ fontSize: '1.2rem' }} />
         </ListItem>
       </List>
     </Drawer>
