@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TextField, Button, CircularProgress, Typography, Grid, Box } from '@mui/material';
+import { TextField, Button, CircularProgress, Typography, Grid, Box, Paper } from '@mui/material';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import Sidebar from '../components/Sidebar';
@@ -15,8 +15,8 @@ const Reports = () => {
   const [error, setError] = useState(null);
 
   const handleSearch = async () => {
-    if (!videoId) {
-      alert("Veuillez entrer un Video ID.");
+    if (!videoId.trim()) {
+      setError("Veuillez entrer un ID de vidéo valide.");
       return;
     }
 
@@ -24,63 +24,22 @@ const Reports = () => {
     setError(null);
 
     try {
-      const response = await fetch(`/api/search?videoId=${videoId}`, { method: 'GET' });
+      const response = await fetch(`/api/search?videoId=${videoId}`);
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(`Erreur API: ${response.statusText}`);
+        throw new Error(data.error || 'Erreur inconnue');
       }
-
-      const data = await response.json();
-      console.log("Données reçues:", data);
 
       setCommentCount(data.comment_count || 0);
       setComments(data.comments || []);
       setSentimentCounts(data.sentiments || { positif: 0, neutre: 0, negatif: 0 });
-
     } catch (error) {
-      console.error("Erreur lors de la récupération des commentaires:", error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
   };
-
-  const chartOptions = {
-    plugins: {
-      legend: {
-        labels: {
-          font: {
-            size: 16, // Augmente la taille des légendes
-            weight: 'bold', // Met en gras
-          },
-          color: 'black', // Assure que le texte est bien visible
-        },
-      },
-    },
-    scales: {
-      x: {
-        ticks: {
-          font: {
-            size: 14, // Augmente la taille des valeurs sur l'axe X
-            weight: 'bold', // Met en gras
-          },
-          color: 'black',
-        },
-        grid: { color: 'rgba(0, 0, 0, 0.2)' },
-      },
-      y: {
-        ticks: {
-          font: {
-            size: 14, // Augmente la taille des valeurs sur l'axe Y
-            weight: 'bold', // Met en gras
-          },
-          color: 'black',
-        },
-        grid: { color: 'rgba(0, 0, 0, 0.2)' },
-      },
-    },
-  };
-  
 
   const chartData = {
     labels: ['Positif', 'Neutre', 'Négatif'],
@@ -88,44 +47,62 @@ const Reports = () => {
       {
         label: 'Nombre de commentaires',
         data: [sentimentCounts.positif, sentimentCounts.neutre, sentimentCounts.negatif],
-        backgroundColor: ['green', 'gray', 'red'],
+        backgroundColor: ['#4CAF50', '#9E9E9E', '#F44336'],
       },
     ],
   };
 
   return (
-    <Box sx={{ display: 'flex', bgcolor: 'white', color: 'black', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', bgcolor: '#F7F9FC', minHeight: '100vh' }}>
       <Sidebar />
-      
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <Typography variant="h4" gutterBottom>Rapports des Commentaires</Typography>
-        
-        <TextField
-          label="Video ID"
-          value={videoId}
-          onChange={(e) => setVideoId(e.target.value)}
-          sx={{ mb: 2, width: '300px', input: { color: 'black' } }}
-          InputLabelProps={{ style: { color: 'black' } }}
-        />
-        <Button variant="contained" onClick={handleSearch} sx={{ ml: 2 }}>Rechercher</Button>
+      <Box sx={{ flexGrow: 1, p: 3 }}>
+        <Typography variant="h3" gutterBottom sx={{ fontSize: '2rem', color: '#333' }}>
+          Rapports des Commentaires
+        </Typography>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+          <TextField
+            label="ID de la vidéo"
+            value={videoId}
+            onChange={(e) => setVideoId(e.target.value)}
+            sx={{ width: '300px', input: { color: '#333' } }}
+            InputLabelProps={{ style: { color: '#666' } }}
+          />
+          <Button variant="contained" onClick={handleSearch} sx={{ bgcolor: '#1976D2', fontSize: '1rem' }}>
+            Rechercher
+          </Button>
+        </Box>
 
         {loading && <CircularProgress sx={{ mt: 2 }} />}
-        {error && <Typography color="error">{error}</Typography>}
+        {error && <Typography color="error" sx={{ fontSize: '1rem' }}>{error}</Typography>}
 
         {!loading && !error && (
           <>
-            <Typography variant="h6">Nombre total de commentaires : {commentCount}</Typography>
-            <Grid container spacing={3} sx={{ mt: 3 }}>
+            <Typography variant="h5" sx={{ mb: 2, color: '#333' }}>
+              Nombre total de commentaires : {commentCount}
+            </Typography>
+
+            <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <Bar data={chartData} options={chartOptions}/>
+                <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 1 }}>
+                  <Bar data={chartData} options={{ responsive: true }} />
+                </Paper>
               </Grid>
               <Grid item xs={12} md={6}>
-                <Typography variant="h6">Liste des Commentaires :</Typography>
-                <ul>
-                  {comments.map((c, i) => (
-                    <li key={i}>{c.text} - <strong>{c.sentiment}</strong></li>
-                  ))}
-                </ul>
+                <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 1 }}>
+                  <Typography variant="h6" sx={{ mb: 1 }}>Liste des Commentaires :</Typography>
+                  <Box sx={{ maxHeight: 300, overflowY: 'auto' }}>
+                    {comments.length > 0 ? (
+                      comments.map((c, i) => (
+                        <Typography key={i} sx={{ fontSize: '1rem', color: '#333', mb: 1 }}>
+                          {c.text} - <strong style={{ color: c.sentiment === 'positif' ? 'green' : c.sentiment === 'negatif' ? 'red' : 'gray' }}>{c.sentiment}</strong>
+                        </Typography>
+                      ))
+                    ) : (
+                      <Typography sx={{ color: '#666' }}>Aucun commentaire trouvé.</Typography>
+                    )}
+                  </Box>
+                </Paper>
               </Grid>
             </Grid>
           </>
