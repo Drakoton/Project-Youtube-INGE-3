@@ -1,4 +1,3 @@
-// pages/api/sentiment.js
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -24,6 +23,9 @@ export default function handler(req, res) {
     }
     try {
       const data = JSON.parse(stdoutData);
+      if (!data.video_data) {
+        return res.status(500).json({ error: 'video_data is missing in the response' });
+      }
       return res.status(200).json(data);
     } catch (err) {
       console.error("Erreur de parsing JSON:", err);
