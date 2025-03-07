@@ -11,6 +11,10 @@ const Reports = () => {
   const [comments, setComments] = useState([]);
   const [commentCount, setCommentCount] = useState(0);
   const [sentimentCounts, setSentimentCounts] = useState({ positif: 0, neutre: 0, negatif: 0 });
+  const [engagementRate, setEngagementRate] = useState(0);
+  const [retentionRate, setRetentionRate] = useState(0);
+  const [themes, setThemes] = useState([]);
+  const [topKeywords, setTopKeywords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -27,13 +31,20 @@ const Reports = () => {
       const response = await fetch(`/api/search?videoId=${videoId}`);
       const data = await response.json();
 
+      console.log("Données de l'API:", data);  // Debugging pour les valeurs de l'API
+
       if (!response.ok) {
         throw new Error(data.error || 'Erreur inconnue');
       }
 
+      // Mise à jour des états
       setCommentCount(data.comment_count || 0);
       setComments(data.comments || []);
-      setSentimentCounts(data.sentiments || { positif: 0, neutre: 0, negatif: 0 });
+      setSentimentCounts(data.comments_sentiments || { positif: 0, neutre: 0, negatif: 0 });
+      setEngagementRate(data.engagement_rate || 0);
+      setRetentionRate(data.retention_rate || 0);
+      setThemes(data.themes || []);
+      setTopKeywords(data.top_keywords || []);
     } catch (error) {
       setError(error.message);
     } finally {
@@ -41,12 +52,17 @@ const Reports = () => {
     }
   };
 
-  const chartData = {
+  // Préparer les données pour le graphique
+  const sentimentChartData = {
     labels: ['Positif', 'Neutre', 'Négatif'],
     datasets: [
       {
         label: 'Nombre de commentaires',
-        data: [sentimentCounts.positif, sentimentCounts.neutre, sentimentCounts.negatif],
+        data: [
+          sentimentCounts.positif,
+          sentimentCounts.neutre,
+          sentimentCounts.negatif
+        ],
         backgroundColor: ['#4CAF50', '#9E9E9E', '#F44336'],
       },
     ],
@@ -82,10 +98,30 @@ const Reports = () => {
               Nombre total de commentaires : {commentCount}
             </Typography>
 
+            {/* Sentiment Global */}
+            <Typography variant="h5" sx={{ mb: 2, color: '#333' }}>
+              Sentiment Global : {sentimentCounts.positif > sentimentCounts.negatif ? 'Positif' : sentimentCounts.negatif > sentimentCounts.positif ? 'Négatif' : 'Neutre'} ({(sentimentCounts.positif - sentimentCounts.negatif).toFixed(2)})
+            </Typography>
+
+            {/* Taux d'engagement */}
+            <Typography variant="h5" sx={{ mb: 2, color: '#333' }}>
+              Taux d'Engagement : {(engagementRate * 100).toFixed(2)}%
+            </Typography>
+
+            {/* Top 5 des mots-clés */}
+            <Typography variant="h5" sx={{ mb: 2, color: '#333' }}>
+              Top 5 des mots-clés : {topKeywords.slice(0, 5).join(', ')}
+            </Typography>
+
+            {/* Thèmes principaux abordés */}
+            <Typography variant="h5" sx={{ mb: 2, color: '#333' }}>
+              Thèmes principaux abordés : {themes.slice(0, 5).join(', ')}
+            </Typography>
+
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Paper sx={{ p: 2, borderRadius: 2, boxShadow: 1 }}>
-                  <Bar data={chartData} options={{ responsive: true }} />
+                  <Bar data={sentimentChartData} options={{ responsive: true }} />
                 </Paper>
               </Grid>
               <Grid item xs={12} md={6}>
@@ -95,7 +131,11 @@ const Reports = () => {
                     {comments.length > 0 ? (
                       comments.map((c, i) => (
                         <Typography key={i} sx={{ fontSize: '1rem', color: '#333', mb: 1 }}>
-                          {c.text} - <strong style={{ color: c.sentiment === 'positif' ? 'green' : c.sentiment === 'negatif' ? 'red' : 'gray' }}>{c.sentiment}</strong>
+                          <span dangerouslySetInnerHTML={{ __html: c.text }} />
+                          {' - '}
+                          <strong style={{ color: c.sentiment === 'positif' ? 'green' : c.sentiment === 'negatif' ? 'red' : 'gray' }}>
+                            {c.sentiment}
+                          </strong>
                         </Typography>
                       ))
                     ) : (
