@@ -1,9 +1,7 @@
-// pages/api/search.js
-
 import { spawn } from 'child_process';
 import path from 'path';
 
-export default function handler(req, res) {
+export default function search(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
@@ -16,7 +14,7 @@ export default function handler(req, res) {
   console.log(`Exécution du script Python pour la vidéo ${videoId}...`);
   const scriptPath = path.join(process.cwd(), 'scripts', 'sentiment_analysis_unique.py');
 
-  const python = spawn('python', [scriptPath, videoId]); 
+  const python = spawn('python', [scriptPath, videoId]);
 
   let stdoutData = '';
   let stderrData = '';
@@ -34,8 +32,13 @@ export default function handler(req, res) {
       console.log("Sortie brute du script Python:", stdoutData);
       const data = JSON.parse(stdoutData);
 
+      // Calculer le nombre de commentaires
+      const commentCount = data.comments ? data.comments.length : 0;
+
+      // Si les données sont correctes et que les commentaires existent
       if (data && Array.isArray(data.comments)) {
-        return res.status(200).json(data);
+        // Ajouter le commentCount à la réponse envoyée
+        return res.status(200).json({ ...data, comment_count: commentCount });
       } else {
         throw new Error('Format des commentaires invalide');
       }
