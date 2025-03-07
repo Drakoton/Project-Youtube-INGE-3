@@ -1,3 +1,5 @@
+//pages/api/sentiment.js
+
 import { spawn } from 'child_process';
 import path from 'path';
 
@@ -7,7 +9,7 @@ export default function handler(req, res) {
   }
 
   console.log("Exécution du script Python...");
-  const scriptPath = path.join(process.cwd(), 'scripts', 'sentiment_analysis.py');
+  const scriptPath = path.join(process.cwd(), 'scripts', 'sentiment_analysis_graphique.py');
   const python = spawn('python', [scriptPath]);
 
   let stdoutData = '';
